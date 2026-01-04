@@ -1,0 +1,7 @@
+{
+  "name": "LangChat",
+  "description": "A sophisticated language learning chat that automatically translates your native thoughts, corrects your target language grammar, and provides real-time translations for every word.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

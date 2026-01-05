@@ -1,17 +1,21 @@
 
 import React, { useState } from 'react';
-import { Language, SUPPORTED_LANGUAGES } from '../types';
+import { Language, SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from '../types';
+import { playSpeech } from '../services/geminiService';
 
 interface SettingsModalProps {
   nativeLang: Language;
   setNativeLang: (l: Language) => void;
   targetLang: Language;
   setTargetLang: (l: Language) => void;
+  voiceName: string;
+  setVoiceName: (v: string) => void;
   onClose: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang, targetLang, setTargetLang, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang, targetLang, setTargetLang, voiceName, setVoiceName, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
 
   const filteredLanguages = SUPPORTED_LANGUAGES.filter(lang => 
     lang.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -23,13 +27,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang
     setTargetLang(temp);
   };
 
+  const handlePlaySample = async (e: React.MouseEvent, voiceId: string) => {
+    e.stopPropagation();
+    if (playingVoice) return;
+    
+    setPlayingVoice(voiceId);
+    try {
+      // A generic greeting sample
+      await playSpeech("Hello, this is my voice. I hope you enjoy learning with me!", voiceId);
+    } catch (err) {
+      console.error("Failed to play sample:", err);
+    } finally {
+      setPlayingVoice(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[95vh]">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
           <div>
-            <h2 className="text-2xl font-black text-indigo-900">Language Setup</h2>
-            <p className="text-sm text-indigo-600 font-medium">Configure your learning pair</p>
+            <h2 className="text-2xl font-black text-indigo-900">Preferences</h2>
+            <p className="text-sm text-indigo-600 font-medium">Customize your learning experience</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white transition-colors text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100">
             <i className="fas fa-times"></i>
@@ -61,8 +80,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang
             </div>
           </div>
 
-          <div className="relative">
-            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          {/* AI Voice Selection */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-widest px-1">Select AI Voice</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {AVAILABLE_VOICES.map((voice) => (
+                <div key={voice.id} className="relative group">
+                  <button
+                    onClick={() => setVoiceName(voice.id)}
+                    className={`w-full p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${voiceName === voice.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-indigo-300 text-slate-600'}`}
+                  >
+                    <i className="fas fa-comment-dots text-lg"></i>
+                    <span className="text-xs font-bold">{voice.name}</span>
+                  </button>
+                  <button 
+                    onClick={(e) => handlePlaySample(e, voice.id)}
+                    disabled={playingVoice !== null}
+                    className={`absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-all ${playingVoice === voice.id ? 'bg-amber-400 text-white animate-pulse' : 'bg-white text-indigo-500 hover:bg-indigo-50 scale-90 group-hover:scale-100 opacity-0 group-hover:opacity-100'}`}
+                    title="Play sample"
+                  >
+                    <i className={`fas ${playingVoice === voice.id ? 'fa-spinner fa-spin' : 'fa-play text-[10px]'}`}></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-3 px-1">
+              {AVAILABLE_VOICES.find(v => v.id === voiceName)?.description} • Click the <i className="fas fa-play text-[8px]"></i> to preview.
+            </p>
+          </section>
+
+          {/* Language Search */}
+          <div className="relative pt-2">
+            <i className="fas fa-search absolute left-4 top-[calc(50%+4px)] -translate-y-1/2 text-slate-400"></i>
             <input 
               type="text" 
               placeholder="Search languages..."
@@ -74,8 +123,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <section>
-              <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-widest px-1">Choose Native</h3>
-              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-widest px-1">Native Language</h3>
+              <div className="grid grid-cols-2 gap-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                 {filteredLanguages.map((lang) => (
                   <button
                     key={`native-${lang.code}`}
@@ -90,8 +139,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang
             </section>
 
             <section>
-              <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-widest px-1">Choose Learning</h3>
-              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-widest px-1">Target Language</h3>
+              <div className="grid grid-cols-2 gap-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                 {filteredLanguages.map((lang) => (
                   <button
                     key={`target-${lang.code}`}
@@ -112,7 +161,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ nativeLang, setNativeLang
             onClick={onClose}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:translate-y-0"
           >
-            CONFIRM SELECTION
+            SAVE PREFERENCES
           </button>
         </div>
       </div>

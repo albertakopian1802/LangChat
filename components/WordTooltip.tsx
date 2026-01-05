@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
-import { translateWord } from '../services/geminiService';
+import { translateWord, playSpeech } from '../services/geminiService';
 
 interface WordTooltipProps {
   text: string;
   nativeLangName: string;
+  voiceName: string;
 }
 
-const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName }) => {
+const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName, voiceName }) => {
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [translation, setTranslation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,8 +34,13 @@ const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName }) => {
     }
   };
 
-  // Split text by words but keep markers for bold (**)
-  // This is tricky with raw text vs markdown. For simplicity, we'll treat the text as tokens.
+  const handlePronounce = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedWord) {
+      playSpeech(selectedWord, voiceName);
+    }
+  };
+
   const words = text.split(/(\s+)/);
 
   return (
@@ -42,7 +48,6 @@ const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName }) => {
       {words.map((part, idx) => {
         const isWord = /\w+/.test(part);
         
-        // Handle bold segments like **word**
         if (part.startsWith('**') && part.endsWith('**')) {
             const inner = part.slice(2, -2);
             return (
@@ -67,11 +72,20 @@ const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName }) => {
 
       {selectedWord && (
         <div 
-          className="fixed z-50 bg-white border border-slate-200 shadow-xl rounded-lg p-3 max-w-xs text-sm animate-in fade-in zoom-in duration-200"
-          style={{ top: position.y + 10, left: Math.min(position.x, window.innerWidth - 260) }}
+          className="fixed z-50 bg-white border border-slate-200 shadow-xl rounded-2xl p-4 max-w-xs text-sm animate-in fade-in zoom-in duration-200"
+          style={{ top: position.y + 10, left: Math.min(position.x, window.innerWidth - 280) }}
         >
-          <div className="flex justify-between items-start mb-2">
-            <h4 className="font-bold text-indigo-600">{selectedWord}</h4>
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-indigo-600 text-base">{selectedWord}</h4>
+              <button 
+                onClick={handlePronounce}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                title="Hear pronunciation"
+              >
+                <i className="fas fa-volume-up text-xs"></i>
+              </button>
+            </div>
             <button onClick={() => setSelectedWord(null)} className="text-slate-400 hover:text-slate-600">
               <i className="fas fa-times"></i>
             </button>
@@ -81,7 +95,9 @@ const WordTooltip: React.FC<WordTooltipProps> = ({ text, nativeLangName }) => {
               <i className="fas fa-circle-notch fa-spin"></i> Translating...
             </div>
           ) : (
-            <p className="text-slate-700 whitespace-pre-wrap">{translation}</p>
+            <div className="text-slate-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar">
+              {translation}
+            </div>
           )}
         </div>
       )}

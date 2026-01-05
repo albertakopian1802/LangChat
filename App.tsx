@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatTurn, Language, SUPPORTED_LANGUAGES } from './types';
+import { ChatTurn, Language, SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from './types';
 import { processLanguageExchange } from './services/geminiService';
 import MessageBubble from './components/MessageBubble';
 import SettingsModal from './components/SettingsModal';
@@ -8,6 +8,7 @@ import SettingsModal from './components/SettingsModal';
 const STORAGE_KEY_NATIVE = 'linguistai_native_lang';
 const STORAGE_KEY_TARGET = 'linguistai_target_lang';
 const STORAGE_KEY_MESSAGES = 'linguistai_chat_history';
+const STORAGE_KEY_VOICE = 'linguistai_preferred_voice';
 
 const App: React.FC = () => {
   // Load settings from localStorage
@@ -23,13 +24,21 @@ const App: React.FC = () => {
     return SUPPORTED_LANGUAGES[0]; // Default English
   };
 
+  const getInitialVoice = () => {
+    const saved = localStorage.getItem(STORAGE_KEY_VOICE);
+    return saved || 'Kore';
+  };
+
   const getInitialMessages = () => {
     const saved = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    // Note: audioUrls stored in localStorage will be invalid on reload 
+    // but the transcription persists. For a real app, blobs would be saved to IndexedDB.
     return saved ? JSON.parse(saved) : [];
   };
 
   const [nativeLang, setNativeLang] = useState<Language>(getInitialNative);
   const [targetLang, setTargetLang] = useState<Language>(getInitialTarget);
+  const [voiceName, setVoiceName] = useState<string>(getInitialVoice);
   const [messages, setMessages] = useState<ChatTurn[]>(getInitialMessages);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,10 +55,13 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_NATIVE, JSON.stringify(nativeLang));
     localStorage.setItem(STORAGE_KEY_TARGET, JSON.stringify(targetLang));
-  }, [nativeLang, targetLang]);
+    localStorage.setItem(STORAGE_KEY_VOICE, voiceName);
+  }, [nativeLang, targetLang, voiceName]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+    // We filter out audioUrls when saving to storage because Blob URLs are session-specific
+    const messagesToSave = messages.map(({ audioUrl, ...rest }) => rest);
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messagesToSave));
   }, [messages]);
 
   // Auto-scroll to bottom
@@ -74,7 +86,8 @@ const App: React.FC = () => {
 
       recorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await handleSendAudio(audioBlob);
+        const localAudioUrl = URL.createObjectURL(audioBlob);
+        await handleSendAudio(audioBlob, localAudioUrl);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -118,7 +131,7 @@ const App: React.FC = () => {
     });
   };
 
-  const handleSendAudio = async (blob: Blob) => {
+  const handleSendAudio = async (blob: Blob, localAudioUrl: string) => {
     setIsLoading(true);
     try {
       const base64Audio = await blobToBase64(blob);
@@ -134,7 +147,7 @@ const App: React.FC = () => {
         history
       );
 
-      updateChatWithResult(result);
+      updateChatWithResult(result, localAudioUrl);
     } catch (error) {
       console.error("Audio process error:", error);
       alert("Failed to process audio. Please try again.");
@@ -167,12 +180,13 @@ const App: React.FC = () => {
     }
   };
 
-  const updateChatWithResult = (result: any) => {
+  const updateChatWithResult = (result: any, audioUrl?: string) => {
     const userTurn: ChatTurn = {
       id: Date.now().toString(),
       sender: 'user',
       targetText: result.targetText,
       nativeText: result.nativeText,
+      audioUrl: audioUrl,
       isCorrection: result.isCorrection
     };
 
@@ -188,6 +202,9 @@ const App: React.FC = () => {
 
   const clearChat = () => {
     if (confirm("Are you sure you want to clear the chat history?")) {
+      messages.forEach(m => {
+        if (m.audioUrl) URL.revokeObjectURL(m.audioUrl);
+      });
       setMessages([]);
       localStorage.removeItem(STORAGE_KEY_MESSAGES);
     }
@@ -216,6 +233,10 @@ const App: React.FC = () => {
               <i className="fas fa-arrow-right text-[8px] text-slate-300"></i>
               <span className="flex items-center gap-1 bg-indigo-50 text-[10px] font-bold text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">
                 {targetLang.flag} {targetLang.name}
+              </span>
+              <span className="text-[10px] text-slate-300 px-1">•</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                Voice: {voiceName}
               </span>
             </div>
           </div>
@@ -250,9 +271,9 @@ const App: React.FC = () => {
                 <i className="fas fa-star text-xs"></i>
               </div>
             </div>
-            <h3 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Speak your mind</h3>
+            <h3 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Listen & Learn</h3>
             <p className="text-slate-500 leading-relaxed mb-8">
-              Don't know a word in <span className="font-bold text-indigo-600 underline decoration-indigo-200">{targetLang.name}</span>? Just say it in <span className="font-bold text-indigo-600 underline decoration-indigo-200">{nativeLang.name}</span> while speaking and I'll help you fix it!
+              Record yourself speaking. I'll play back your voice and show you how a native speaker would say it. Perfect your accent in real-time!
             </p>
           </div>
         ) : (
@@ -263,6 +284,7 @@ const App: React.FC = () => {
                   message={m} 
                   targetLang={targetLang} 
                   nativeLang={nativeLang} 
+                  voiceName={voiceName}
                 />
               </div>
             ))}
@@ -274,7 +296,7 @@ const App: React.FC = () => {
                     <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
                     <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-bounce"></span>
                   </div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI is listening & translating</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Processing Audio</span>
                 </div>
               </div>
             )}
@@ -324,7 +346,7 @@ const App: React.FC = () => {
           <button 
             type="button"
             onClick={toggleRecording}
-            className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl transition-all ${isRecording ? 'bg-red-500 hover:bg-red-600 scale-110' : 'bg-white text-slate-400 border border-slate-200 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50'}`}
+            className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all ${isRecording ? 'bg-red-500 text-white hover:bg-red-600 scale-110' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'}`}
             title={isRecording ? "Stop & Send" : "Hold to speak"}
           >
             <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} text-xl`}></i>
@@ -333,20 +355,25 @@ const App: React.FC = () => {
           <button 
             type="submit"
             disabled={!inputValue.trim() || isLoading || isRecording}
-            className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl transition-all ${!inputValue.trim() || isLoading || isRecording ? 'bg-slate-200 text-slate-400 shadow-none' : 'bg-gradient-to-br from-indigo-600 to-violet-700 hover:shadow-indigo-200 hover:scale-105 active:scale-95'}`}
+            className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all ${!inputValue.trim() || isLoading || isRecording ? 'bg-slate-200 text-slate-400 shadow-none' : 'bg-gradient-to-br from-indigo-600 to-violet-700 text-white hover:shadow-indigo-200 hover:scale-105 active:scale-95'}`}
           >
             {isLoading ? <i className="fas fa-circle-notch fa-spin text-xl"></i> : <i className="fas fa-paper-plane text-xl"></i>}
           </button>
         </form>
         <div className="max-w-4xl mx-auto flex justify-center items-center gap-6 mt-4">
            <div className="flex items-center gap-1.5">
-             <i className="fas fa-bolt text-[10px] text-indigo-400"></i>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">AI processes audio natively</span>
+             <i className="fas fa-microphone text-[10px] text-indigo-400"></i>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Your Voice</span>
            </div>
            <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
            <div className="flex items-center gap-1.5">
-             <i className="fas fa-random text-[10px] text-indigo-400"></i>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Mixed languages supported</span>
+             <i className="fas fa-arrow-right text-[10px] text-slate-200"></i>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter italic">VS</span>
+           </div>
+           <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
+           <div className="flex items-center gap-1.5">
+             <i className="fas fa-volume-up text-[10px] text-indigo-400"></i>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">AI Pronunciation</span>
            </div>
         </div>
       </div>
@@ -358,6 +385,8 @@ const App: React.FC = () => {
           setNativeLang={setNativeLang} 
           targetLang={targetLang} 
           setTargetLang={setTargetLang} 
+          voiceName={voiceName}
+          setVoiceName={setVoiceName}
           onClose={() => setShowSettings(false)}
         />
       )}

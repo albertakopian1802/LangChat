@@ -6,11 +6,18 @@ export type Language = {
   flag: string;
 };
 
+export type AIVoice = {
+  id: string;
+  name: string;
+  description: string;
+};
+
 export interface ChatTurn {
   id: string;
   sender: 'user' | 'ai';
   targetText: string;
   nativeText: string;
+  audioUrl?: string; // URL for the user's recorded audio blob
   isCorrection?: boolean;
 }
 
@@ -32,7 +39,7 @@ export const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'de', name: 'German', voice: 'Puck', flag: '🇩🇪' },
   { code: 'it', name: 'Italian', voice: 'Kore', flag: '🇮🇹' },
   { code: 'ja', name: 'Japanese', voice: 'Kore', flag: '🇯🇵' },
-  { code: 'zh', name: 'Chinese', voice: 'Kore', flag: '🇨🇳' },
+  { code: 'zh', name: 'Chinese', voice: 'Kore', flag: '🇰🇷' },
   { code: 'ko', name: 'Korean', voice: 'Kore', flag: '🇰🇷' },
   { code: 'pt', name: 'Portuguese', voice: 'Kore', flag: '🇵🇹' },
   { code: 'tr', name: 'Turkish', voice: 'Puck', flag: '🇹🇷' },
@@ -41,4 +48,12 @@ export const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'nl', name: 'Dutch', voice: 'Puck', flag: '🇳🇱' },
   { code: 'pl', name: 'Polish', voice: 'Puck', flag: '🇵🇱' },
   { code: 'vi', name: 'Vietnamese', voice: 'Kore', flag: '🇻🇳' },
+];
+
+export const AVAILABLE_VOICES: AIVoice[] = [
+  { id: 'Kore', name: 'Kore', description: 'Clear and professional' },
+  { id: 'Puck', name: 'Puck', description: 'Deep and resonant' },
+  { id: 'Charon', name: 'Charon', description: 'Calm and steady' },
+  { id: 'Zephyr', name: 'Zephyr', description: 'Energetic and bright' },
+  { id: 'Fenrir', name: 'Fenrir', description: 'Warm and natural' },
 ];

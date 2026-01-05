@@ -1,9 +1,8 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ProcessedInput, Language } from "../types";
 
-// Safety check for API key to prevent immediate crash
-const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+// Safety check: ensure process.env.API_KEY is handled as expected by the environment
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 // Helper to decode Base64 to Uint8Array
 function decode(base64: string) {
@@ -42,8 +41,8 @@ export const processLanguageExchange = async (
   targetLang: Language,
   history: { role: string; parts: { text: string }[] }[]
 ): Promise<ProcessedInput> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your environment variables.");
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing. Please ensure VITE_API_KEY is set in your environment or GitHub Secrets.");
   }
 
   const parts: any[] = [];

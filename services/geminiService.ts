@@ -1,8 +1,9 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ProcessedInput, Language } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Safety check for API key to prevent immediate crash
+const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 // Helper to decode Base64 to Uint8Array
 function decode(base64: string) {
@@ -41,6 +42,10 @@ export const processLanguageExchange = async (
   targetLang: Language,
   history: { role: string; parts: { text: string }[] }[]
 ): Promise<ProcessedInput> => {
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please check your environment variables.");
+  }
+
   const parts: any[] = [];
 
   // Add audio if present
@@ -104,7 +109,7 @@ export const processLanguageExchange = async (
     }
   });
 
-  return JSON.parse(response.text);
+  return JSON.parse(response.text || "{}");
 };
 
 export const playSpeech = async (text: string, voiceName: string) => {
@@ -143,5 +148,5 @@ export const translateWord = async (word: string, context: string, nativeLang: s
     model: "gemini-3-flash-preview",
     contents: `Translate the word "${word}" into ${nativeLang}. Use the context of this sentence: "${context}". Just give the translation and a brief definition.`,
   });
-  return response.text;
+  return response.text || "Translation unavailable";
 };
